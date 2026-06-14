@@ -68,20 +68,32 @@ def extract_landmarks(dataset_path):
     for root, dirs, files in os.walk(dataset_path):
         for d in dirs:
             if d == "asl_alphabet_train":
-                train_dir = os.path.join(root, d)
-                break
+                candidate = os.path.join(root, d)
+                # The class dirs (A, B, C, ...) might be directly inside
+                # or one more level down (nested asl_alphabet_train).
+                inner_contents = os.listdir(candidate)
+                if inner_contents and os.path.isdir(os.path.join(candidate, inner_contents[0])):
+                    first = inner_contents[0]
+                    if first in ["A", "space", "nothing", "del"] or first == "asl_alphabet_train":
+                        if first == "asl_alphabet_train":
+                            train_dir = os.path.join(candidate, first)
+                        else:
+                            train_dir = candidate
+                        break
+                else:
+                    train_dir = candidate
+                    break
         if train_dir:
             break
 
     if train_dir is None:
-        # try direct subdirs
         train_dir = dataset_path
 
     print(f"Training directory: {train_dir}")
 
     class_dirs = sorted(
         d for d in os.listdir(train_dir)
-        if os.path.isdir(os.path.join(train_dir, d))
+        if os.path.isdir(os.path.join(train_dir, d)) and d != "__MACOSX"
     )
     print(f"Found {len(class_dirs)} class directories: {class_dirs}")
 
@@ -296,32 +308,25 @@ def main():
         print(f"\n📂 Found cached landmarks: {LANDMARKS_FILE}")
         data = np.load(LANDMARKS_FILE)
         X = data["X"]
-        y = data["y"]
-        print(f"Loaded {len(X)} samples")
+        y_enc = data["y"]
+        with open(ENCODER_OUT, "rb") as f:
+            le = pickle.load(f)
+        print(f"Loaded {len(X)} samples, {len(le.classes_)} classes")
     else:
         X, y_raw = extract_landmarks(dataset_path)
-        _, y = encode_labels(y_raw)  # temporarily encode to save
-        np.savez_compressed(LANDMARKS_FILE, X=X, y=y)
-        print(f"Saved landmarks to {LANDMARKS_FILE}")
+        if len(X) == 0:
+            print("ERROR: No landmarks extracted. Check dataset path or MediaPipe installation.")
+            sys.exit(1)
+        y_enc, le = encode_labels(y_raw)
+        np.savez_compressed(LANDMARKS_FILE, X=X, y=y_enc)
+        with open(ENCODER_OUT, "wb") as f:
+            pickle.dump(le, f)
+        print(f"Saved landmarks to {LANDMARKS_FILE} and encoder to {ENCODER_OUT}")
 
-    # Step 3: Encode labels
-    # Need to reload raw labels for proper encoding
-    if os.path.exists(LANDMARKS_FILE):
-        data = np.load(LANDMARKS_FILE)
-        X = data["X"]
-        y_enc = data["y"]
-    else:
-        _, y_enc = encode_labels(y_raw)
+    # Step 3: Train
+    model, scaler = train_model(X, y_enc, len(le.classes_))
 
-    # Step 4: Train
-    model, scaler = train_model(X, y_enc, NUM_CLASSES)
-
-    # Step 5: Save
-    from sklearn.preprocessing import LabelEncoder
-    # Reconstruct label encoder from fitting
-    le = LabelEncoder()
-    le.classes_ = np.array([chr(65+i) for i in range(26)] + ["del", "nothing", "space"])
-
+    # Step 4: Save
     save_artifacts(model, scaler, le, X, y_enc)
 
     print("\n" + "=" * 60)

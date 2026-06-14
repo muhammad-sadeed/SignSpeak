@@ -11,7 +11,7 @@ import numpy as np
 
 from labels import idx_to_label, NUM_CLASSES
 
-MODEL_PATH = "model2.0.pth"
+MODEL_PATH = "landmark_model.pth"
 MODEL_DEVICE = "cpu"
 CONFIDENCE_THRESHOLD = 0.1
 DEBUG_TOPK = 0
