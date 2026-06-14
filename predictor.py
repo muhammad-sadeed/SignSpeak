@@ -1,19 +1,18 @@
 """
-SignPredictor: loads an EfficientNet-B3 PyTorch model and runs inference on
-cropped hand images from the webcam feed.
+SignPredictor: loads a PyTorch MLP model trained on MediaPipe hand landmarks
+and runs inference on 63D landmark vectors extracted from the webcam feed.
 
-The model was trained on 300x300 RGB images of hand signs.
+The model was trained on 21 hand landmarks (x, y, z) = 63 features.
 """
 import os
+import pickle
 
-import cv2
 import numpy as np
 
-from labels import idx_to_label, NUM_CLASSES
-
 MODEL_PATH = "landmark_model.pth"
+ENCODER_PATH = "label_encoder.pkl"
 MODEL_DEVICE = "cpu"
-CONFIDENCE_THRESHOLD = 0.1
+CONFIDENCE_THRESHOLD = 0.6
 DEBUG_TOPK = 0
 
 _torch = None
@@ -26,10 +25,28 @@ def _import_torch():
             import torch as _t
         except ImportError:
             raise ImportError(
-                "PyTorch is required. Install with: pip install torch torchvision"
+                "PyTorch is required. Install with: pip install torch"
             )
         _torch = _t
     return _torch
+
+
+def _build_mlp(input_dim, hidden_dims, num_classes):
+    torch_obj = _import_torch()
+    nn = torch_obj.nn
+
+    layers = []
+    prev_dim = input_dim
+    for h_dim in hidden_dims:
+        layers.extend([
+            nn.Linear(prev_dim, h_dim),
+            nn.BatchNorm1d(h_dim),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+        ])
+        prev_dim = h_dim
+    layers.append(nn.Linear(prev_dim, num_classes))
+    return nn.Sequential(*layers)
 
 
 class SignPredictor:
@@ -44,36 +61,52 @@ class SignPredictor:
         self.device = torch_obj.device(device)
         self.confidence_threshold = confidence_threshold
 
-        self.model = self._load_model(model_path)
+        self.model, self.scaler_mean, self.scaler_scale, self.le = (
+            self._load_model(model_path)
+        )
         self.model.to(self.device)
         self.model.eval()
-
-        self.input_size = 300
-        self.mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-        self.std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
     def _load_model(self, model_path):
         model_path = os.path.expanduser(model_path)
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found: {model_path}")
 
-        import timm
-        state_dict = self._torch.load(
+        checkpoint = self._torch.load(
             model_path, map_location=self.device, weights_only=True
         )
-        model = timm.create_model(
-            "efficientnet_b3", pretrained=False, num_classes=NUM_CLASSES
-        )
-        model.load_state_dict(state_dict)
-        return model
 
-    def predict(self, hand_image: np.ndarray) -> str | None:
-        img = cv2.resize(hand_image, (self.input_size, self.input_size))
-        img = img.astype(np.float32) / 255.0
-        img = (img - self.mean) / self.std
-        img = img.transpose(2, 0, 1)
+        input_dim = checkpoint["input_dim"]
+        hidden_dims = checkpoint["hidden_dims"]
+        num_classes = checkpoint["num_classes"]
 
-        tensor = self._torch.tensor(img, dtype=self._torch.float32, device=self.device)
+        model = _build_mlp(input_dim, hidden_dims, num_classes)
+        model.load_state_dict(checkpoint["state_dict"])
+
+        scaler_mean = np.array(checkpoint["scaler_mean"], dtype=np.float32)
+        scaler_scale = np.array(checkpoint["scaler_scale"], dtype=np.float32)
+
+        encoder_path = os.path.join(os.path.dirname(model_path) or ".", ENCODER_PATH)
+        if not os.path.exists(encoder_path):
+            encoder_path = ENCODER_PATH
+        with open(encoder_path, "rb") as f:
+            le = pickle.load(f)
+
+        print(f"Loaded landmark model: {num_classes} classes, input_dim={input_dim}")
+        return model, scaler_mean, scaler_scale, le
+
+    def predict(self, landmarks) -> str | None:
+        """
+        landmarks: list of 21 MediaPipe landmark objects (each with .x, .y, .z)
+        Returns predicted label string, or None if confidence below threshold.
+        """
+        coords = []
+        for lm in landmarks:
+            coords.extend([lm.x, lm.y, lm.z])
+        vec = np.array(coords, dtype=np.float32)
+
+        vec = (vec - self.scaler_mean) / (self.scaler_scale + 1e-8)
+        tensor = self._torch.tensor(vec, dtype=self._torch.float32, device=self.device)
         tensor = tensor.unsqueeze(0)
 
         with self._torch.no_grad():
@@ -86,14 +119,12 @@ class SignPredictor:
             pred_idx = topk_indices[0, 0]
 
         if DEBUG_TOPK:
-            print(
-                " ".join(
-                    f"{idx_to_label(topk_indices[0, i].item())}:{topk_values[0, i].item():.2f}"
-                    for i in range(DEBUG_TOPK)
-                )
-            )
+            labels = [self.le.classes_[i.item()] for i in topk_indices[0]]
+            print(" ".join(
+                f"{l}:{v.item():.2f}" for l, v in zip(labels, topk_values[0])
+            ))
 
         if confidence.item() < self.confidence_threshold:
             return None
 
-        return idx_to_label(pred_idx.item())
+        return self.le.classes_[pred_idx.item()]
