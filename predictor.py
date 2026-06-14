@@ -11,9 +11,10 @@ import numpy as np
 
 from labels import idx_to_label, NUM_CLASSES
 
-MODEL_PATH = "model.pth"
+MODEL_PATH = "model2.0.pth"
 MODEL_DEVICE = "cpu"
-CONFIDENCE_THRESHOLD = 0.5
+CONFIDENCE_THRESHOLD = 0.1
+DEBUG_TOPK = 0
 
 _torch = None
 
@@ -67,15 +68,6 @@ class SignPredictor:
         return model
 
     def predict(self, hand_image: np.ndarray) -> str | None:
-        """
-        Predict the ASL letter from a cropped hand image.
-
-        Args:
-            hand_image: RGB numpy array of a hand region, any size.
-
-        Returns:
-            Predicted letter or None if confidence is too low.
-        """
         img = cv2.resize(hand_image, (self.input_size, self.input_size))
         img = img.astype(np.float32) / 255.0
         img = (img - self.mean) / self.std
@@ -87,7 +79,19 @@ class SignPredictor:
         with self._torch.no_grad():
             logits = self.model(tensor)
             probs = self._torch.softmax(logits, dim=1)
-            confidence, pred_idx = self._torch.max(probs, dim=1)
+            topk_values, topk_indices = self._torch.topk(
+                probs, max(3, DEBUG_TOPK), dim=1
+            )
+            confidence = topk_values[0, 0]
+            pred_idx = topk_indices[0, 0]
+
+        if DEBUG_TOPK:
+            print(
+                " ".join(
+                    f"{idx_to_label(topk_indices[0, i].item())}:{topk_values[0, i].item():.2f}"
+                    for i in range(DEBUG_TOPK)
+                )
+            )
 
         if confidence.item() < self.confidence_threshold:
             return None
