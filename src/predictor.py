@@ -9,8 +9,11 @@ import pickle
 
 import numpy as np
 
-MODEL_PATH = "landmark_model.pth"
-ENCODER_PATH = "label_encoder.pkl"
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_BASE_DIR)
+
+MODEL_PATH = os.path.join(_PROJECT_ROOT, "models", "landmark_model.pth")
+ENCODER_PATH = os.path.join(_PROJECT_ROOT, "data", "label_encoder.pkl")
 MODEL_DEVICE = "cpu"
 CONFIDENCE_THRESHOLD = 0.6
 DEBUG_TOPK = 0
