@@ -20,7 +20,7 @@ except (FileNotFoundError, ImportError, RuntimeError) as e:
     print("Running in hand-tracking-only mode.")
     predictor = None
 
-word_assembler = WordAssembler(word_cooldown_frames=45, min_consecutive_frames=5)
+word_assembler = WordAssembler(word_cooldown_frames=60, min_consecutive_frames=8, same_letter_cooldown_frames=30)
 
 
 def draw_overlay(frame, letter, word, sentence):

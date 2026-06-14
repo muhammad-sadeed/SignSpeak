@@ -46,7 +46,9 @@ class WordAssembler:
             self._candidate_frames = 1
             self._candidate_letter = letter
 
-        self._committed_frames_ago += 1
+        if letter != self._committed_letter:
+            self._committed_frames_ago += 1
+        # else: holding same letter — don't advance cooldown
 
         if self._candidate_frames >= self.min_consecutive_frames:
             same_as_committed = letter == self._committed_letter
