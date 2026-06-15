@@ -69,7 +69,7 @@ def draw_overlay(frame, letter, word, sentence):
     return frame
 
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 print("Press 'q' to quit, 'r' to reset sentence.")
 
 while True:
