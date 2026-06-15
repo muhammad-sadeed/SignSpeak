@@ -25,7 +25,6 @@ import cv2
 
 # ---------- config ----------
 DATASET = "grassknoted/asl-alphabet"
-DATA_DIR = "asl_alphabet_data"
 LANDMARKS_FILE = "landmarks.npz"
 MODEL_OUT = "landmark_model.pth"
 ENCODER_OUT = "label_encoder.pkl"
@@ -35,7 +34,6 @@ NUM_CLASSES = 29
 BATCH_SIZE = 2048
 EPOCHS = 80
 LR = 1e-3
-MIN_CONFIDENCE = 20  # min samples per class to keep it
 
 # ---------- step 1: download dataset ----------
 def download_dataset():

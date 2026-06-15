@@ -89,10 +89,7 @@ class SignPredictor:
         scaler_mean = np.array(checkpoint["scaler_mean"], dtype=np.float32)
         scaler_scale = np.array(checkpoint["scaler_scale"], dtype=np.float32)
 
-        encoder_path = os.path.join(os.path.dirname(model_path) or ".", ENCODER_PATH)
-        if not os.path.exists(encoder_path):
-            encoder_path = ENCODER_PATH
-        with open(encoder_path, "rb") as f:
+        with open(ENCODER_PATH, "rb") as f:
             le = pickle.load(f)
 
         print(f"Loaded landmark model: {num_classes} classes, input_dim={input_dim}")
