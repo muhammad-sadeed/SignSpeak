@@ -1,10 +1,12 @@
 <script>
   import { onMount } from "svelte";
   import { createSignStore } from "./lib/signSocket.svelte.js";
+  import { createTTS } from "./lib/tts.svelte.js";
   import Camera from "./lib/Camera.svelte";
   import TranslationPanel from "./lib/TranslationPanel.svelte";
 
   const store = createSignStore();
+  const tts = createTTS();
   let cameraActive = $state(false);
 
   const statusInfo = $derived(
@@ -16,13 +18,32 @@
     }[store.status] ?? { label: "Disconnected", cls: "off" },
   );
 
+  // Auto-speak each word as it finalizes into the sentence.
+  let lastSentence = "";
+  $effect(() => {
+    const s = store.sentence;
+    if (s === lastSentence) return;
+    if (tts.enabled && s && s.startsWith(lastSentence)) {
+      const added = s.slice(lastSentence.length).trim();
+      if (added) tts.speak(added);
+    }
+    lastSentence = s;
+  });
+
   onMount(() => {
     store.connect();
-    return () => store.disconnect();
+    return () => {
+      tts.cancel();
+      store.disconnect();
+    };
   });
 
   function toggleCamera() {
     cameraActive = !cameraActive;
+  }
+
+  function speakSentence() {
+    if (store.sentence) tts.speak(store.sentence);
   }
 </script>
 
@@ -42,12 +63,44 @@
   </header>
 
   <div class="toolbar">
-    <button class="btn primary" onclick={toggleCamera}>
-      {cameraActive ? "Stop camera" : "Start camera"}
-    </button>
-    <button class="btn ghost" onclick={() => store.reset()} disabled={!store.sentence && !store.word}>
-      Reset
-    </button>
+    <div class="group">
+      <button class="btn primary" onclick={toggleCamera}>
+        {cameraActive ? "Stop camera" : "Start camera"}
+      </button>
+      <button class="btn ghost" onclick={() => store.reset()} disabled={!store.sentence && !store.word}>
+        Reset
+      </button>
+    </div>
+    {#if tts.supported}
+      <div class="group">
+        <select
+          class="voice-select"
+          value={tts.selectedVoiceURI}
+          onchange={(e) => tts.setVoice(e.currentTarget.value)}
+          aria-label="Voice"
+        >
+          {#each tts.voices as v (v.voiceURI)}
+            <option value={v.voiceURI}>{v.name} ({v.lang})</option>
+          {/each}
+        </select>
+        <button
+          class="btn toggle"
+          aria-pressed={tts.enabled}
+          onclick={() => tts.toggle()}
+          title="Toggle auto-speak"
+        >
+          Auto-speak {tts.enabled ? "on" : "off"}
+        </button>
+        <button
+          class="btn ghost"
+          class:speaking={tts.speaking}
+          onclick={speakSentence}
+          disabled={!store.sentence}
+        >
+          {tts.speaking ? "Speaking…" : "Speak"}
+        </button>
+      </div>
+    {/if}
   </div>
 
   <main class="grid">
@@ -144,6 +197,44 @@
     display: flex;
     gap: 12px;
     align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .voice-select {
+    font: inherit;
+    font-size: 0.88rem;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    max-width: 220px;
+  }
+
+  .voice-select option {
+    background: #15151f;
+    color: var(--text);
+  }
+
+  .toggle[aria-pressed="true"] {
+    color: #d1fae5;
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.12);
+  }
+
+  .btn.speaking {
+    color: #cffafe;
+    border-color: rgba(6, 182, 212, 0.4);
+    background: rgba(6, 182, 212, 0.12);
   }
 
   .btn {
