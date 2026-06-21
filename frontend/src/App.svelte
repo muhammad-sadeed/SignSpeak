@@ -67,7 +67,11 @@
       <button class="btn primary" onclick={toggleCamera}>
         {cameraActive ? "Stop camera" : "Start camera"}
       </button>
-      <button class="btn ghost" onclick={() => store.reset()} disabled={!store.sentence && !store.word}>
+      <button
+        class="btn ghost"
+        onclick={() => store.reset()}
+        disabled={!store.sentence && !store.word}
+      >
         Reset
       </button>
     </div>
@@ -79,7 +83,7 @@
           onchange={(e) => tts.setVoice(e.currentTarget.value)}
           aria-label="Voice"
         >
-          {#each tts.voices as v (v.voiceURI)}
+          {#each tts.voices as v, i (i)}
             <option value={v.voiceURI}>{v.name} ({v.lang})</option>
           {/each}
         </select>
@@ -185,13 +189,27 @@
     background: var(--dim);
   }
 
-  .status.on { color: #d1fae5; }
-  .status.on .status-dot { background: #10b981; }
-  .status.warn { color: #fde68a; }
-  .status.warn .status-dot { background: #f59e0b; }
-  .status.err { color: #fca5a5; }
-  .status.err .status-dot { background: #ef4444; }
-  .status.off { color: var(--dim); }
+  .status.on {
+    color: #d1fae5;
+  }
+  .status.on .status-dot {
+    background: #10b981;
+  }
+  .status.warn {
+    color: #fde68a;
+  }
+  .status.warn .status-dot {
+    background: #f59e0b;
+  }
+  .status.err {
+    color: #fca5a5;
+  }
+  .status.err .status-dot {
+    background: #ef4444;
+  }
+  .status.off {
+    color: var(--dim);
+  }
 
   .toolbar {
     display: flex;
@@ -244,11 +262,19 @@
     border-radius: 12px;
     border: 1px solid var(--border);
     cursor: pointer;
-    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+    transition:
+      transform 0.12s ease,
+      box-shadow 0.12s ease,
+      opacity 0.12s ease;
   }
 
-  .btn:active { transform: translateY(1px); }
-  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 
   .btn.primary {
     color: white;
@@ -292,6 +318,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .btn { transition: none; }
+    .btn {
+      transition: none;
+    }
   }
 </style>
