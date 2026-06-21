@@ -9,6 +9,8 @@ Requirements: Python 3.11+
 ```bash
 python -m venv .venv
 source .venv/bin/activate      # macOS/Linux
+.venv\Scripts\activate.bat     # windows cmd
+.venv\Scripts\Activate.ps1     # windows powershell
 pip install -r requirements.txt
 ```
 
