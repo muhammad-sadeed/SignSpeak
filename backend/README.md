@@ -14,6 +14,8 @@ pip install -r requirements.txt
 
 ## Run
 
+### Desktop app (local webcam + on-screen overlay)
+
 ```bash
 python src/main.py
 ```
@@ -21,6 +23,16 @@ python src/main.py
 - Show an ASL letter to the camera — it appears on screen.
 - Hold your hand still to type a word; remove it to finalize.
 - Press **Q** to quit, **R** to reset the sentence.
+
+### Web API server (for the Svelte frontend)
+
+```bash
+uvicorn src.server:app --reload --port 8000
+```
+
+Exposes a WebSocket at `ws://localhost:8000/ws` that accepts JPEG frames and
+returns JSON `{letter, word, sentence, hand_detected, landmarks}`. The frontend
+in `frontend/` connects to it. A health check is available at `GET /`.
 
 ## Controls
 
@@ -36,6 +48,7 @@ python src/main.py
 ```
 ├── src/
 │   ├── main.py              # Webcam loop, MediaPipe, UI overlay
+│   ├── server.py            # FastAPI WebSocket server for the web frontend
 │   ├── predictor.py          # MLP inference on 63D landmark vectors
 │   └── word_assembler.py     # Letter deduplication, word/sentence assembly
 ├── models/
